@@ -1,0 +1,263 @@
+# Comments are provided throughout this file to help you get started.
+# If you need more help, visit the Docker Compose reference guide at
+# https://docs.docker.com/go/compose-spec-reference/
+
+# Here the instructions define your application as a service called "server".
+# This service is built from the Dockerfile in the current directory.
+# You can add other services your application may depend on here, such as a
+# database or a cache. For examples, see the Awesome Compose repository:
+# https://github.com/docker/awesome-compose
+
+services:
+
+  # frontend streamlit
+  frontend:
+    container_name: frontend
+    build:
+      context: ./
+      dockerfile: frontend/Dockerfile
+    ports:
+      - 8501:8501
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  # Wait until RabbitMQ is healthy
+    restart: unless-stopped  # Auto-restart on failure
+    environment:
+      RABBITMQ_HOST: "rabbitmq"
+      STREAMLIT_CONFIG_FILE: /home/appuser/.streamlit/config.toml
+      STREAMLIT_GLOBAL_METRICS: "false"
+      STREAMLIT_SERVER_FILE_WATCHER_TYPE: "none"
+    volumes:
+      - streamlit_data:/app/.streamlit
+
+
+
+  # user_management microservice (app & db)
+
+  user_management-app: # user_management FastAPI app
+    container_name: user_management-app
+    build: 
+      context: ./
+      dockerfile: user_management/Dockerfile
+    ports: 
+      - "8001:8001"
+    depends_on:
+      - user_management-db
+    environment:
+      RUNNING_ENV: "docker"
+      MONGO_URI: "mongodb://user_management-db:27017" # localhost is replaced with the service name
+
+  user_management-db: # user_management MongoDB
+    container_name: user_management-db
+    image: mongo:8.0
+    ports:
+      - "27011:27017" # external : internal mapping
+    volumes:
+      - user_management_mongo_data:/data/db
+
+
+
+  # credits microservice (app & db)
+
+  credits-app: # credits FastAPI app
+    container_name: credits-app
+    build: 
+      context: credits/
+    ports: 
+      - "8002:8002"
+    depends_on:
+      - credits-db
+    environment:
+      RUNNING_ENV: "docker"
+      MONGO_URI: "mongodb://credits-db:27017" # localhost is replaced with the service name
+
+  credits-db: # credits MongoDB
+    container_name: credits-db
+    image: mongo:8.0
+    ports:
+      - "27012:27017" # external : internal mapping
+    volumes:
+      - credits_mongo_data:/data/db
+
+
+
+  # xlsx parsing microservice (app)
+  xlsx_parsing:
+    container_name: xlsx_parsing
+    build:
+      context: xlsx_parsing/
+    ports:
+      - 8003:8003
+
+
+
+  # statistics microservice (app & db)
+
+  statistics-app: # statistics FastAPI app
+    container_name: statistics-app
+    build: 
+      context: ./
+      dockerfile: statistics/Dockerfile
+    ports: 
+      - "8004:8004"
+    depends_on:
+      - statistics-db
+    environment:
+      RUNNING_ENV: "docker"
+      MONGO_URI: "mongodb://statistics-db:27017" # localhost is replaced with the service name
+
+  statistics-db: # statistics MongoDB
+    container_name: statistics-db
+    image: mongo:8.0
+    ports:
+      - "27014:27017" # external : internal mapping
+    volumes:
+      - statistics_mongo_data:/data/db
+
+
+
+  # review microservice (app & db)
+  review-app: # review FastAPI app
+    container_name: review-app
+    build: 
+      context: review/
+    ports: 
+      - "8005:8005"
+    depends_on:
+      - review-db
+    environment:
+      RUNNING_ENV: "docker"
+      MONGO_URI: "mongodb://review-db:27017" # localhost is replaced with the service name
+  
+  review-db: # review MongoDB
+    container_name: review-db
+    image: mongo:8.0
+    ports:
+      - "27015:27017" # external : internal mapping
+    volumes:
+      - review_mongo_data:/data/db
+
+
+
+
+  # RabbitMQ container
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:management
+    hostname: rabbitmq
+    # container_name: saas25-20-rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    ports:
+      - 5672:5672
+      - 15672:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    configs:
+      - source: rabbitmq-plugins
+        target: /etc/rabbitmq/enabled_plugins
+    volumes:
+      - rabbitmq-lib:/var/lib/rabbitmq/
+      - rabbitmq-log:/var/log/rabbitmq
+
+
+
+
+  # Workers the consume from queue and make requests to the microservices
+
+  user_management-worker:
+    container_name: user_management-worker
+    build: 
+      context: messaging/
+      dockerfile: user_management/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  # Wait until RabbitMQ is healthy
+    restart: unless-stopped  # Auto-restart on failure
+    environment:
+      RABBITMQ_HOST: "rabbitmq"
+      RESPONSIBLE_HOST: "user_management-app" # The host that will be responsible for the user_management
+
+
+  credits-worker:
+    container_name: credits-worker
+    build: 
+      context: messaging/
+      dockerfile: credits/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  # Wait until RabbitMQ is healthy
+    restart: unless-stopped  # Auto-restart on failure
+    environment:
+      RABBITMQ_HOST: "rabbitmq"
+      RESPONSIBLE_HOST: "credits-app" # The host that will be responsible for the credits
+
+
+  xlsx_parsing-worker:
+    container_name: xlsx_parsing-worker
+    build: 
+      context: messaging/
+      dockerfile: xlsx_parsing/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  # Wait until RabbitMQ is healthy
+    restart: unless-stopped  # Auto-restart on failure
+    environment:
+      RABBITMQ_HOST: "rabbitmq"
+      RESPONSIBLE_HOST: "xlsx_parsing" # The host that will be responsible for the xlsx_parsing
+
+
+  statistics-worker:
+    deploy:
+      replicas: 2  # You can scale this up if needed
+    build: 
+      context: messaging/
+      dockerfile: statistics/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  # Wait until RabbitMQ is healthy
+    restart: unless-stopped  # Auto-restart on failure
+    environment:
+      RABBITMQ_HOST: "rabbitmq"
+      RESPONSIBLE_HOST: "statistics-app" # The host that will be responsible for the statistics
+
+
+  review-worker:
+    container_name: review-worker
+    build: 
+      context: messaging/
+      dockerfile: review/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy  # Wait until RabbitMQ is healthy
+    restart: unless-stopped  # Auto-restart on failure
+    environment:
+      RABBITMQ_HOST: "rabbitmq"
+      RESPONSIBLE_HOST: "review-app" # The host that will be responsible for the review
+
+
+
+
+configs:
+  rabbitmq-plugins:
+    content: "[rabbitmq_management]."  
+
+
+
+# Volumes for the Databases and RabbitMQ
+volumes:
+  streamlit_data:
+  credits_mongo_data:
+  statistics_mongo_data:
+  user_management_mongo_data:
+  review_mongo_data:
+  rabbitmq-lib:
+    driver: local
+  rabbitmq-log:
+    driver: local
+

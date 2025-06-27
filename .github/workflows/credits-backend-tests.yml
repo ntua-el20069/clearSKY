@@ -1,0 +1,49 @@
+name: credits backend tests
+
+# workflow dispatch has been added for testing purposes
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ["ubuntu-latest"]
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    services:
+      mongodb:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install requirements
+        run: |
+          cd credits
+          python -m pip cache purge
+          pip install -r requirements.txt
+
+      - name: Start mongodb backend
+        env:
+          MONGO_URI: mongodb://localhost:27017
+        run: |
+          cd credits/credits
+          nohup fastapi run app.py > fastapi.log 2>&1 & echo $! > fastapi.pid
+          sleep 10
+      - name: Run credits unit tests
+        env:
+          MONGO_URI: mongodb://localhost:27017
+          PYTHONPATH: ${{ github.workspace }}/
+        run: |
+          pip install pytest pytest-cov
+          pytest credits/tests
+      - name: Stop FastAPI server
+        run: |
+          cd credits/credits
+          kill $(cat fastapi.pid) || true
+          rm fastapi.pid

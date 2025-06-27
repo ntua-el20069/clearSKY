@@ -1,0 +1,12 @@
+# RabbitMQ messaging Queue
+pika
+
+# requests
+requests
+types-requests
+
+# typing
+typing_extensions
+
+# fastapi for UploadFile
+fastapi[standard]

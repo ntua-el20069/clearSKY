@@ -1,0 +1,15 @@
+# frontend dependencies
+streamlit
+streamlit-cookies-manager
+
+# for orchestrator
+
+# RabbitMQ messaging Queue
+pika
+
+# fastapi for UploadFile
+fastapi[standard]
+
+# jwt, dotenv for google login
+PyJWT
+python-dotenv

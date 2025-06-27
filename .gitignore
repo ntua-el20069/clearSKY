@@ -1,0 +1,7 @@
+*.pyc
+.coverage
+*.egg-info
+session_info.json
+.venv
+docs.html
+initialize.py

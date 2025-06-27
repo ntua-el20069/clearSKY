@@ -1,0 +1,8 @@
+# server/backend
+fastapi[standard]
+
+# testing
+pytest
+
+# XLSX parsing
+openpyxl

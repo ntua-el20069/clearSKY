@@ -1,0 +1,18 @@
+# server/backend
+fastapi[standard]
+pydantic
+pydantic_core
+pymongo
+uvicorn
+motor
+httpcore
+pydantic-settings
+
+# testing
+pytest
+pytest-mock
+mongomock
+mongoengine
+
+# typing
+typing_extensions
