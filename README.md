@@ -19,6 +19,8 @@ supports interactive student-professor reviews, multiple statistics per course,
 grading management for professors and much more. For the **full documentation**
 please visit our OpenAPI 3.0 documentation at `/docs` once you run the backend.
 
+clearSKY functionalities are demonstrated in this quick youtube [demo](https://www.youtube.com/watch?v=fGAhwPX3sPU).
+
 
 ## Manual Run
 To start the application manually, you can just run:
